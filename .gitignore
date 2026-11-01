@@ -1,0 +1,24 @@
+.DS_Store
+.venv/
+.tools/
+__pycache__/
+*.py[cod]
+
+# Local runtime data
+playlists.txt
+playlist.txt
+playlists_previous*.txt
+downloaded_books.txt
+youtube_archive.txt
+mp3/*
+!mp3/.gitkeep
+
+# Credentials and session files must never be committed
+credentials.json
+service-account.json
+token.json
+
+# Temporary download fragments
+*.part
+*.ytdl
+*.temp
