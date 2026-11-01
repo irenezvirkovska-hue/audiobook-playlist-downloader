@@ -1,0 +1,3 @@
+# One YouTube playlist or video URL per line.
+https://www.youtube.com/playlist?list=EXAMPLE_PLAYLIST_ID
+https://www.youtube.com/watch?v=EXAMPLE_VIDEO_ID
