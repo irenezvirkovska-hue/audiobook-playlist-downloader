@@ -1,75 +1,73 @@
 # Audiobook Playlist Downloader
 
-A Python command-line tool for preparing an offline MP3 audiobook collection. Created to help a blind listener access audiobooks without navigating video playlists, it automates audio downloads, conversion and duplicate checks for the person preparing the collection.
+**A Python CLI that turns YouTube audiobook playlists into a clean offline MP3 library, without duplicates.**
+
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![yt-dlp](https://img.shields.io/badge/Powered%20by-yt--dlp-red)
+![FFmpeg](https://img.shields.io/badge/Audio-FFmpeg-007808)
+[![Tests](https://github.com/irenezvirkovska-hue/audiobook-playlist-downloader/actions/workflows/tests.yml/badge.svg)](https://github.com/irenezvirkovska-hue/audiobook-playlist-downloader/actions/workflows/tests.yml)
+
+## Why I built it
+
+I made this tool for my friend's mother. She is blind and loves audiobooks, but YouTube playlists, ads and recommendations are hard to navigate without sight. A simple MP3 player with ready files works much better for her.
+
+Preparing those files by hand was slow, and the same book often appeared in several playlists under slightly different names. So I wrote a tool that downloads whole playlists, converts them to MP3 and **skips everything that is already in the collection**.
 
 ## Features
 
-- Accept individual YouTube URLs or playlists from a text file.
-- Convert audio to MP3 at 192 kbps using yt-dlp and FFmpeg.
-- Skip previously downloaded video IDs using a persistent archive.
-- Normalize titles and conservatively compare similar titles, retaining chapter and part numbers.
-- Check existing MP3 files alongside the local title history.
-- Retry failed downloads and resume partial transfers.
-- Record titles only after a successful download and conversion is confirmed.
-- Preview the queue with `--dry-run`, without downloading or modifying local files.
-- Print counts of downloaded, skipped, unavailable and failed items.
+- **Batch download.** Single URLs or a list of playlists from a text file.
+- **MP3 conversion.** 192 kbps audio via yt-dlp and FFmpeg.
+- **Three layers of duplicate protection:**
+  1. a persistent archive of downloaded video IDs;
+  2. exact matching of normalized titles against the download history and existing MP3 files;
+  3. fuzzy title matching that never merges different parts of a book.
+- **Reliable downloads.** Retries after network errors and YouTube 403 responses, resumes partial files; a title is saved to history only after a successful conversion.
+- **Dry run.** `--dry-run` shows what would be downloaded and what would be skipped, without changing anything.
+- **Summary report.** Counts of downloaded, skipped, unavailable and failed items.
 
-The tool prepares audio files; it is not an audiobook player or a screen-reader interface. Console messages are in Ukrainian.
+## How duplicate detection works
 
-## Requirements
+Audiobook titles on YouTube are noisy: track numbers, channel tags, video IDs, phrases like "full audiobook in Ukrainian". The tool normalizes every title before comparing:
 
-- Python 3.10 or newer
-- FFmpeg available on PATH
-- Dependencies listed in `requirements.txt`
-- Internet access for metadata lookup and downloads
+| Raw title | Normalized |
+| --- | --- |
+| `001. [Shevchenko] Аудіокнига «Іван Підкова». Тарас Шевченко.mp3` | `аудіокнига іван підкова тарас шевченко` |
+| `Книга \| Аудіокнига українською [abcdefghijk].mp3` | `книга` |
 
-## Setup
+Then it compares the new title with the collection:
+
+| New title | Already in the collection | Result |
+| --- | --- | --- |
+| `КНИГА: частина 1` | `Книга — Частина 1` | ⏭ Skipped: exact match after normalization |
+| `Книга — Частина 2` | `Книга — Частина 1` | ⬇️ Downloaded: different part number |
+
+Fuzzy matching (`difflib.SequenceMatcher`, threshold 0.94) is applied only when titles contain **the same numbers**, so "Part 1" and "Part 2" are never treated as duplicates.
+
+## Quick start
+
+Requirements: Python 3.10+ and [FFmpeg](https://ffmpeg.org/download.html) on your PATH.
 
 ```bash
 git clone https://github.com/irenezvirkovska-hue/audiobook-playlist-downloader.git
 cd audiobook-playlist-downloader
 python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --pre -r requirements.txt
-```
-
-On Windows, activate the environment with `.venv\Scripts\activate`.
-Install FFmpeg separately for your operating system.
-
-Create your local input file:
-
-```bash
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install --pre -r requirements.txt
 cp playlists.example.txt playlists.txt
 ```
 
-Replace the example URLs with URLs for content you are permitted to download. Use one URL per line; blank lines and lines beginning with `#` are ignored. Optionally copy `downloaded_books.example.txt` to `downloaded_books.txt` and replace the examples with your existing title history.
-
-## Usage
+Put one playlist or video URL per line in `playlists.txt` (lines starting with `#` are ignored), then:
 
 ```bash
-# Inspect the queue and duplicates without downloading
-python youtube_to_mp3.py --dry-run
-
-# Download from playlists.txt
-python youtube_to_mp3.py
-
-# Process a single URL
-python youtube_to_mp3.py --playlist "YOUTUBE_URL"
-
-# Use a different input file or destination
-python youtube_to_mp3.py --playlist-file my_urls.txt --output mp3
-
-# See all options
-python youtube_to_mp3.py --help
+python youtube_to_mp3.py --dry-run                 # preview, nothing is downloaded
+python youtube_to_mp3.py                           # download everything from playlists.txt
+python youtube_to_mp3.py --playlist "YOUTUBE_URL"  # a single playlist or video
+python youtube_to_mp3.py --help                    # all options
 ```
 
-Additional options include `--books-file`, `--archive`, `--no-fuzzy` and `--similarity-threshold`. The default similarity threshold is 0.94. Optional `--cookies-from-browser` accepts `safari`, `chrome` or `firefox` when an authenticated session is needed.
+Useful options: `--output` (destination folder), `--no-fuzzy`, `--similarity-threshold`, `--cookies-from-browser safari|chrome|firefox`.
 
-## Duplicate handling
-
-The script first checks the video ID archive, then compares normalized titles against the title history and existing MP3 filenames. Fuzzy comparisons require matching numeric components so different numbered parts are not treated as the same title. This is a heuristic, not audio-content matching.
-
-The title history is appended after yt-dlp confirms success in its archive. Network failures are retried; a failed item does not add a title to the history.
+`--pre` installs the latest yt-dlp build, which keeps up with frequent YouTube changes. Console messages are in Ukrainian.
 
 ## Tests
 
@@ -77,16 +75,23 @@ The title history is appended after yt-dlp confirms success in its archive. Netw
 python -m unittest discover -s tests -v
 ```
 
-The included tests cover title normalization, duplicate and part-number handling, input parsing, extractor configuration and retry behavior. They do not contact YouTube or validate live downloads. YouTube compatibility depends on the current yt-dlp version and upstream changes.
+Unit tests cover title normalization, duplicate and part-number handling, input parsing, yt-dlp configuration and retry logic. They run without network access and on every push via GitHub Actions.
 
-## Repository contents
+## Project structure
 
-- `youtube_to_mp3.py` - downloader and command-line interface
-- `requirements.txt` - Python dependency
-- `tests/test_youtube_to_mp3.py` - unit tests
-- `playlists.example.txt` and `downloaded_books.example.txt` - sample inputs
-- `.gitignore` - excludes local history, playlists, audio, environments and credentials
+```text
+audiobook-playlist-downloader/
+├── youtube_to_mp3.py              # CLI, duplicate detection, download and retry logic
+├── tests/test_youtube_to_mp3.py   # unit tests
+├── playlists.example.txt          # sample input
+├── downloaded_books.example.txt   # sample title history
+└── requirements.txt
+```
 
-Personal playlists, download history, browser sessions and audio files are not included.
+Personal playlists, download history and audio files stay local and are excluded from Git.
 
-Use only content you have permission to download and follow the applicable platform terms and copyright requirements.
+---
+
+Use it only for content you are allowed to download, and follow YouTube's terms of service.
+
+Built by **Iryna Zvirkovska**: [GitHub](https://github.com/irenezvirkovska-hue) · [LinkedIn](https://www.linkedin.com/in/iryna-zvirkovska/)
